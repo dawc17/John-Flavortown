@@ -13,6 +13,7 @@ class JF(commands.Bot):
     )
 
   async def setup_hook(self) -> None:
+    await self.load_extension("bot.cogs.login")
     await self.load_extension("bot.cogs.profile")
     await self.load_extension("bot.cogs.overlap")
     if GUILD_ID: 
