@@ -12,5 +12,6 @@ authors = [{ name = "daw", email = "dawid.czaplicki2008@gmail.com" }]
 requires-python = ">=3.8"
 dependencies = [
   "requests",
-  "discord"
+  "discord",
+  "cryptography"
 ]
