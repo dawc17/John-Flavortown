@@ -129,3 +129,4 @@ cython_debug/
 .vscode/
 data/
 /flavorcli
+api.md
