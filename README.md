@@ -36,16 +36,16 @@ API keys are encrypted with a user-provided password before storage. The bot ope
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `/login` | Store your API key (Flavortown or Hackatime) |
-| `/logout` | Remove stored API keys |
-| `/status` | Check which services you are logged into |
-| `/search` | Search for users or projects |
-| `/list` | List shop items or projects |
-| `/stats` | View your Flavortown stats |
-| `/time` | View your Hackatime coding time today |
-| `/overlap` | Compare your stats with a random user |
+| Command    | Description                                  |
+| ---------- | -------------------------------------------- |
+| `/login`   | Store your API key (Flavortown or Hackatime) |
+| `/logout`  | Remove stored API keys                       |
+| `/status`  | Check which services you are logged into     |
+| `/search`  | Search for users or projects                 |
+| `/list`    | List shop items or projects                  |
+| `/stats`   | View your Flavortown stats                   |
+| `/time`    | View your Hackatime coding time today        |
+| `/overlap` | Compare your stats with a random user        |
 
 ## Project Structure
 
