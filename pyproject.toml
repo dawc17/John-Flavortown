@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "johnflavortown"
+version = "0.1.0"
+description = "A discord bot for tracking your Flavortown progress."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "daw", email = "dawid.czaplicki2008@gmail.com" }]
+requires-python = ">=3.8"
+dependencies = [
+  "requests",
+  "discord"
+]

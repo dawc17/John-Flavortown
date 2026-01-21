@@ -5,15 +5,20 @@ Users encrypt their API keys with a personal password. The bot stores only
 the encrypted version, ensuring that even the bot operator cannot read keys.
 """
 
+import time
+
 import discord
 from discord import app_commands
 from discord.ext import commands
+import requests
 
 from bot.crypto import encrypt_api_key, decrypt_api_key
 from bot.storage import store_encrypted_key, get_encrypted_key, delete_user_key, user_has_key
 from bot.api import API_BASE_URL
 
-import requests
+# keys stored only in ram
+SESSION_CACHE: dict[int, dict] = {}
+SESSION_TIMEOUT = 7200  # 2 hours
 
 
 class LoginModal(discord.ui.Modal, title="Login to Flavortown"):
@@ -97,11 +102,22 @@ class UnlockModal(discord.ui.Modal, title="Unlock API Access"):
         max_length=100
     )
     
-    def __init__(self, callback):
+    def __init__(self, callback, cache_key: bool = True):
         super().__init__()
         self._callback = callback
+        self._cache_key = cache_key
     
     async def on_submit(self, interaction: discord.Interaction):
+        # attempt to decrypt the key
+        stored = get_encrypted_key(interaction.user.id)
+        if stored:
+            encrypted_key, salt = stored
+            decrypted_key = decrypt_api_key(encrypted_key, salt, self.password.value)
+            if decrypted_key and self._cache_key:
+                SESSION_CACHE[interaction.user.id] = {
+                    "key": decrypted_key,
+                    "expires": time.time() + SESSION_TIMEOUT
+                }
         await self._callback(interaction, self.password.value)
 
 
@@ -119,10 +135,13 @@ class Login(commands.Cog):
     
     @app_commands.command(name="logout", description="Remove your stored API key")
     async def logout(self, interaction: discord.Interaction):
-        """Delete the user's stored encrypted key."""
+        """Delete the user's stored encrypted key and clear session cache."""
+        # clear session cache
+        clear_user_session(interaction.user.id)
+        
         if delete_user_key(interaction.user.id):
             await interaction.response.send_message(
-                "Your API key has been deleted.",
+                "Your API key has been deleted and session cleared.",
                 ephemeral=True
             )
         else:
@@ -152,27 +171,64 @@ async def setup(bot: commands.Bot):
     await bot.add_cog(Login(bot))
 
 
+def clear_user_session(user_id: int) -> bool:
+    """
+    Clear a user's session from the cache.
+    
+    Args:
+        user_id: The Discord user ID
+    
+    Returns:
+        True if session was cleared, False if no session existed.
+    """
+    if user_id in SESSION_CACHE:
+        del SESSION_CACHE[user_id]
+        return True
+    return False
+
+
 # utility function for other cogs to get a decrypted API key
 async def get_api_key_for_user(
     interaction: discord.Interaction,
-    password: str
+    password: str | None = None
 ) -> str | None:
     """
-    Attempt to decrypt and return a user's API key.
+    Attempt to get a user's API key from cache or decrypt it.
     
     Args:
         interaction: The Discord interaction (for user ID)
-        password: The user's encryption password
+        password: The user's encryption password (optional if cached)
     
     Returns:
-        The decrypted API key, or None if decryption fails.
+        The decrypted API key, or None if no valid cache and no password provided.
     """
-    stored = get_encrypted_key(interaction.user.id)
+    user_id = interaction.user.id
+    
+    if user_id in SESSION_CACHE:
+        session = SESSION_CACHE[user_id]
+        if time.time() < session["expires"]:
+            SESSION_CACHE[user_id]["expires"] = time.time() + SESSION_TIMEOUT
+            return session["key"]
+        else:
+            del SESSION_CACHE[user_id]
+    
+    if password is None:
+        return None
+    
+    stored = get_encrypted_key(user_id)
     if not stored:
         return None
     
     encrypted_key, salt = stored
-    return decrypt_api_key(encrypted_key, salt, password)
+    decrypted_key = decrypt_api_key(encrypted_key, salt, password)
+    
+    if decrypted_key:
+        SESSION_CACHE[user_id] = {
+            "key": decrypted_key,
+            "expires": time.time() + SESSION_TIMEOUT
+        }
+    
+    return decrypted_key
 
 
 def require_auth(func):

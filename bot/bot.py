@@ -16,6 +16,7 @@ class JF(commands.Bot):
     await self.load_extension("bot.cogs.login")
     await self.load_extension("bot.cogs.profile")
     await self.load_extension("bot.cogs.overlap")
+    await self.load_extension("bot.cogs.commands")
     if GUILD_ID: 
       guild = discord.Object(id=GUILD_ID)
       self.tree.copy_global_to(guild=guild)
