@@ -78,3 +78,26 @@ def get_project_by_id(api_key: str, project_id: int):
     if isinstance(e, requests.HTTPError) and e.response.status_code == 404:
       raise APIError(f"Project with ID {project_id} not found!")
     raise APIError(f"Failed to fetch project! {str(e)}")
+
+def get_self(api_key: str):
+  url = f"{API_BASE_URL}/api/v1/users/me"
+  try:
+    response = requests.get(url, headers=_get_headers(api_key))
+    response.raise_for_status()
+    return response.json()
+  except requests.RequestException as e:
+    if isinstance(e, requests.HTTPError) and e.response.status_code == 401:
+      raise APIError("Invalid API key or unauthorized access!")
+    raise APIError(f"Failed to fetch your profile! {str(e)}")
+
+def get_project_devlogs(api_key: str, project_id: int, page: int = 1):
+  url = f"{API_BASE_URL}/api/v1/projects/{project_id}/devlogs"
+  params = {"page": page}
+  try:
+    response = requests.get(url, headers=_get_headers(api_key), params=params)
+    response.raise_for_status()
+    return response.json()
+  except requests.RequestException as e:
+    if isinstance(e, requests.HTTPError) and e.response.status_code == 404:
+      raise APIError(f"Project with ID {project_id} not found!")
+    raise APIError(f"Failed to fetch devlogs! {str(e)}")

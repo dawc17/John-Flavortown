@@ -18,7 +18,7 @@ def _derive_key(password: str, salt: bytes) -> bytes:
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
-        iterations=480000,  # OWASP recommendation for PBKDF2-SHA256
+        iterations=480000,  # thats a lot :D
     )
     key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
     return key
