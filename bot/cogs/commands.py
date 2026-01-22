@@ -14,21 +14,6 @@ from bot.api import get_users, get_projects, get_shop, get_self, get_project_by_
 from bot.hackatime import get_time_today, HackatimeAPIError
 
 
-def format_seconds(seconds: int) -> str:
-    """Format seconds into a human-readable string."""
-    if seconds < 60:
-        return f"{seconds} secs"
-    elif seconds < 3600:
-        mins = seconds // 60
-        return f"{mins} min{'s' if mins != 1 else ''}"
-    else:
-        hours = seconds // 3600
-        mins = (seconds % 3600) // 60
-        if mins > 0:
-            return f"{hours} hr{'s' if hours != 1 else ''} {mins} min{'s' if mins != 1 else ''}"
-        return f"{hours} hr{'s' if hours != 1 else ''}"
-
-
 class PaginationView(discord.ui.View):
     """Base pagination view with Previous/Next buttons."""
     
@@ -367,71 +352,6 @@ class Commands(commands.Cog):
         
         modal = UnlockModal(on_password)
         await interaction.response.send_modal(modal)
-
-    @app_commands.command(name="stats", description="Show your Flavortown stats")
-    @require_auth(service="flavortown")
-    async def stats(self, interaction: discord.Interaction):
-        """Show user's stats."""
-        api_key = await get_api_key_for_user(interaction, service="flavortown")
-        if not api_key:
-             await interaction.response.send_message("Failed to retrieve API key.", ephemeral=True)
-             return
-
-        try:
-            data = get_self(api_key)
-            name = data.get("display_name", "Unknown")
-            cookies = data.get("cookies", 0)
-            devlog_seconds_total = data.get("devlog_seconds_total", 0)
-            devlog_seconds_today = data.get("devlog_seconds_today", 0)
-            project_ids = data.get("project_ids", [])
-            avatar_url = data.get("avatar")
-            
-            embed = discord.Embed(
-                title=f"🍪 Stats for {name}",
-                color=discord.Color.green()
-            )
-            
-            embed.add_field(name="Cookies", value=f"**{cookies}** 🍪", inline=True)
-            
-            total_time_str = format_seconds(devlog_seconds_total) if devlog_seconds_total else "0 secs"
-            embed.add_field(name="Total Devlog Time", value=f"**{total_time_str}** ⏱️", inline=True)
-            
-            today_time_str = format_seconds(devlog_seconds_today) if devlog_seconds_today else "0 secs"
-            embed.add_field(name="Devlog Time Today", value=f"**{today_time_str}**", inline=True)
-            
-            if project_ids:
-                most_worked_project = None
-                max_devlog_time = 0
-                
-                for pid in project_ids[:10]:  # limit to avoid too many API calls
-                    try:
-                        project = get_project_by_id(api_key, pid)
-                        devlog_ids = project.get("devlog_ids", [])
-                        # estimate time by number of devlogs as a heuristic
-                        if len(devlog_ids) > max_devlog_time:
-                            max_devlog_time = len(devlog_ids)
-                            most_worked_project = project
-                    except APIError:
-                        continue
-                
-                if most_worked_project:
-                    project_title = most_worked_project.get("title", "Unknown")
-                    embed.add_field(
-                        name="Most Active Project",
-                        value=f"**{project_title}** ({max_devlog_time} devlogs)",
-                        inline=False
-                    )
-            
-            if avatar_url:
-                embed.set_thumbnail(url=avatar_url)
-            elif interaction.user.avatar:
-                embed.set_thumbnail(url=interaction.user.avatar.url)
-            
-            embed.set_footer(text=f"Projects: {len(project_ids)}")
-            
-            await interaction.response.send_message(embed=embed)
-        except APIError as e:
-            await interaction.response.send_message(f"Error fetching stats: {e}", ephemeral=True)
 
     @app_commands.command(name="time", description="Show your coding time today")
     @require_auth(service="hackatime")
