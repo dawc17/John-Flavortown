@@ -127,9 +127,15 @@ class Profile(commands.Cog):
 
             embed.set_footer(text="Your API key was decrypted temporarily and is not stored in plaintext.")
 
-            await interaction.response.send_message(embed=embed)
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.response.send_message(embed=embed)
         except APIError as e:
-            await interaction.response.send_message(f"API Error: {e}", ephemeral=True)
+            if interaction.response.is_done():
+                await interaction.followup.send(f"API Error: {e}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"API Error: {e}", ephemeral=True)
 
     @app_commands.command(
         name="profile",
@@ -153,10 +159,16 @@ class Profile(commands.Cog):
         async def on_password(modal_interaction: discord.Interaction, password: str):
             api_key = await get_api_key_for_user(modal_interaction, password)
             if not api_key:
-                await modal_interaction.response.send_message(
-                    "Incorrect password! Please try again.",
-                    ephemeral=True
-                )
+                if modal_interaction.response.is_done():
+                    await modal_interaction.followup.send(
+                        "Incorrect password! Please try again.",
+                        ephemeral=True
+                    )
+                else:
+                    await modal_interaction.response.send_message(
+                        "Incorrect password! Please try again.",
+                        ephemeral=True
+                    )
                 return
             
             await self._show_profile(modal_interaction, api_key)

@@ -153,6 +153,8 @@ class UnlockModal(discord.ui.Modal, title="Unlock API Access"):
         self._cache_key = cache_key
     
     async def on_submit(self, interaction: discord.Interaction):
+        if not interaction.response.is_done():
+            await interaction.response.defer(thinking=True, ephemeral=True)
         # attempt to decrypt the key
         stored = get_encrypted_key(interaction.user.id, self._service)
         if stored:
