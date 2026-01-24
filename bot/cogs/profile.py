@@ -64,7 +64,7 @@ class Profile(commands.Cog):
 
             embed = discord.Embed(
                 title=f"🍔 {name}'s Flavortown Profile",
-                description=f"Flavor Rank: **{rank}**\n{progress} **{score}** XP",
+                description=f"Rank: **{rank}**\n{progress} **{score}** XP",
                 color=discord.Color.orange()
             )
 
