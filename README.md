@@ -1,76 +1,112 @@
 # John Flavortown
 
-A Discord bot for interacting with the Flavortown and Hackatime APIs. Allows users to search for projects, view shop items, track coding time, and compare stats with other users.
+Discord bot for interacting with the Flavortown and Hackatime APIs. Provides commands to search users and projects, list shop items and projects, view profile stats, and fetch Hackatime time data.
 
 ## Features
 
-- **Search**: Find users or projects by name
-- **List**: Browse shop items and projects with pagination
-- **Stats**: View your Flavortown profile including cookies, devlog time, and projects
-- **Time**: Display your coding time today from Hackatime
-- **Overlap**: Compare your stats against a random user
+- Search users or projects
+- List shop items and projects with pagination
+- Show Flavortown profile details
+- Show Hackatime coding time today
+- Compare your stats with a random Flavortown user
 
 ## Security
 
-API keys are encrypted with a user-provided password before storage. The bot operator cannot read plaintext keys. Keys are cached in memory for 2 hours after authentication to reduce password prompts.
+API keys are encrypted with a user provided password before storage. The bot operator cannot read plaintext keys. Keys are cached in memory for a limited time to reduce password prompts.
+
+## Requirements
+
+- Python 3.8 or newer
+- Discord bot token
+- Flavortown API key and Hackatime API key for users
 
 ## Installation
 
-1. Clone the repository
-2. Create a virtual environment and install dependencies:
-   ```
+1. Clone the repository.
+2. Create a virtual environment and install dependencies.
+   
+   Windows:
+   
    python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   source .venv/bin/activate  # Linux/macOS
+   .venv\Scripts\activate
    pip install -r requirements.txt
-   ```
-3. Create a `.env` file with your Discord bot token:
-   ```
+   
+   Linux or macOS:
+   
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+
+3. Create a .env file in the project root.
+   
    DISCORD_TOKEN=your_token_here
-   GUILD_ID=your_guild_id  # Optional, for faster command sync
-   ```
-4. Run the bot:
-   ```
+   GUILD_ID=your_guild_id
+   LOG_LEVEL=INFO
+   PAGINATION_VIEW_TIMEOUT_SECONDS=180
+   SHOP_PAGE_SIZE=10
+   PROJECT_PAGE_SIZE=20
+   SEARCH_USERS_PAGE_SIZE=25
+   SEARCH_PROJECTS_PAGE_SIZE=20
+
+4. Run the bot.
+   
    python -m bot.main
-   ```
+
+## Configuration
+
+Environment variables:
+
+- DISCORD_TOKEN. Required.
+- GUILD_ID. Optional. If set, commands are synced to that guild for faster updates.
+- LOG_LEVEL. Optional. Defaults to INFO.
+- PAGINATION_VIEW_TIMEOUT_SECONDS. Optional. Defaults to 180.
+- SHOP_PAGE_SIZE. Optional. Defaults to 10.
+- PROJECT_PAGE_SIZE. Optional. Defaults to 20.
+- SEARCH_USERS_PAGE_SIZE. Optional. Defaults to 25.
+- SEARCH_PROJECTS_PAGE_SIZE. Optional. Defaults to 20.
 
 ## Commands
 
 | Command    | Description                                  |
 | ---------- | -------------------------------------------- |
-| `/login`   | Store your API key (Flavortown or Hackatime) |
-| `/logout`  | Remove stored API keys                       |
-| `/status`  | Check which services you are logged into     |
-| `/search`  | Search for users or projects                 |
-| `/list`    | List shop items or projects                  |
-| `/stats`   | View your Flavortown stats                   |
-| `/time`    | View your Hackatime coding time today        |
-| `/overlap` | Compare your stats with a random user        |
+| /login     | Store your API key for Flavortown or Hackatime |
+| /logout    | Remove stored API keys                       |
+| /status    | Check which services you are logged into     |
+| /search    | Search for users or projects                 |
+| /list      | List shop items or projects                  |
+| /profile   | Show Flavortown profile                      |
+| /time      | Show Hackatime coding time today             |
+| /overlap   | Compare stats with a random user             |
+| /health    | Show bot health information                  |
 
-## Project Structure
+## Data Storage
 
-```
-bot/
-    main.py          Entry point
-    bot.py           Bot class and setup
-    api.py           Flavortown API wrapper
-    hackatime.py     Hackatime API wrapper
-    storage.py       SQLite storage for encrypted keys
-    crypto.py        Encryption utilities
-    config.py        Environment configuration
-    cogs/
-        login.py     Authentication commands
-        commands.py  Main commands (search, list, stats, time)
-        overlap.py   User comparison command
-        profile.py   Profile display
-```
+- SQLite database stored at data/keys.db
+- Encrypted API keys with per user per service rows
 
-## Dependencies
+## Testing
 
-- discord.py
-- requests
-- cryptography
-- python-dotenv
+Activate the virtual environment and run tests:
+
+pytest
+
+## Project Files
+
+Key files:
+
+- bot/main.py entry point
+- bot/bot.py bot setup and startup
+- bot/api.py Flavortown API wrapper
+- bot/hackatime.py Hackatime API wrapper
+- bot/http.py shared request helpers
+- bot/storage.py SQLite storage
+- bot/crypto.py encryption utilities
+- bot/config.py environment configuration
+- bot/utils.py shared helpers
+- bot/cogs/login.py authentication commands
+- bot/cogs/commands.py search, list, time, and health commands
+- bot/cogs/overlap.py comparison command
+- bot/cogs/profile.py profile command
 
 ## License
 
