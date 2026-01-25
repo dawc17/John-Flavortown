@@ -2,6 +2,9 @@ import discord
 from discord.ext import commands
 from bot.config import GUILD_ID
 
+import logging
+logger = logging.getLogger(__name__)
+
 intents = discord.Intents.default()
 
 class JF(commands.Bot):
@@ -21,14 +24,14 @@ class JF(commands.Bot):
       guild = discord.Object(id=GUILD_ID)
       self.tree.copy_global_to(guild=guild)
       await self.tree.sync(guild=guild)
-      print(f"Slash commands synced to guild {GUILD_ID}")
+      logger.info("event=slash_sync scope=guild guild_id=%s", GUILD_ID)
     else:
       await self.tree.sync()
-      print("Global slash commands synced (may take up to 1 hour)")
+      logger.info("event=slash_sync scope=global")
 
   async def on_ready(self):
-    print(f"Logged in as {self.user} (ID: {self.user.id})")
-    print(f"Connected to {len(self.guilds)} guild(s)")
+    logger.info("event=ready user=%s user_id=%s", self.user, self.user.id)
+    logger.info("event=guild_count count=%s", len(self.guilds))
     print("------")
 
 bot = JF()
