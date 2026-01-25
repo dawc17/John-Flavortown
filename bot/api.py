@@ -79,6 +79,23 @@ class ShopItem(TypedDict, total=False):
   stock: int | None
   limited: bool
 
+class DevlogListResponse(TypedDict, total=False):
+  devlogs: list[DevlogItem]
+  pagination: Pagination
+
+class DevlogDetail(TypedDict, total=False):
+  id: int
+  body: str
+  scrapbook_url: str
+  created_at: str
+  updated_at: str
+  duration_seconds: int
+  likes_count: int
+  comments_count: int
+
+class DevlogDetailResponse(TypedDict, total=False):
+  devlog: DevlogDetail
+
 def _get_headers(api_key: str) -> dict[str, str]:
   """Get headers for API requests using the provided API key."""
   if not api_key:
@@ -141,6 +158,15 @@ def get_project_devlogs(api_key: str, project_id: int, page: int = 1) -> Project
     if "status=404" in str(e):
       raise APIError(f"Project with ID {project_id} not found!")
     raise
+
+def list_devlogs(api_key: str, page: int = 1) -> DevlogListResponse:
+  url = f"{API_BASE_URL}/api/v1/devlogs"
+  params = {"page": page}
+  return _request("GET", url, headers=_get_headers(api_key), params=params, action="List devlogs", service="flavortown", error_class=APIError)
+
+def get_devlog_by_id(api_key: str, devlog_id: int) -> DevlogDetailResponse:
+  url = f"{API_BASE_URL}/api/v1/devlogs/{devlog_id}"
+  return _request("GET", url, headers=_get_headers(api_key), action="Fetch devlog", service="flavortown", error_class=APIError)
 
 def create_project(
     api_key: str,
