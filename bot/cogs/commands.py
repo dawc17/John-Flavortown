@@ -590,5 +590,39 @@ class Commands(commands.Cog):
         except APIError as e:
             await send_error(interaction, f"API error: {e}")
 
+    @app_commands.command(name="devlog-create", description="Create a devlog entry")
+    @require_auth(service="flavortown")
+    async def devlog_create(
+        self,
+        interaction: discord.Interaction,
+        project_id: int,
+        body: str,
+        duration_seconds: int,
+        media_urls: str | None = None,
+    ):
+        try:
+            api_key = await get_api_key_for_user(interaction, service="flavortown")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
+        if not api_key:
+            await send_error(interaction, "Failed to retrieve API key.")
+            return
+        
+        try:
+            body = require_non_empty(body, "body")
+            duration_seconds = validate_duration_seconds(duration_seconds)
+            urls = parse_media_urls(media_urls)
+        except ValueError as e:
+            await send_error(interaction, str(e))
+            return
+        
+        try:
+            created = create_devlog(api_key, project_id, body, duration_seconds, urls)
+            devlog_id = created.get("id", "unknown")
+            await interaction.response.send_message(f"Devlog created. ID: {devlog_id}", ephemeral=True)
+        except APIError as e:
+            await send_error(interaction, f"API error: {e}")
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Commands(bot))
