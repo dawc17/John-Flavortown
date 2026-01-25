@@ -11,7 +11,7 @@ import functools
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import requests
 
 from bot.crypto import encrypt_api_key, decrypt_api_key
@@ -21,7 +21,8 @@ from bot.api import API_BASE_URL
 # keys stored only in ram
 # SESSION_CACHE[user_id] = { "flavortown": { "key": ..., "expires": ... }, "hackatime": ... }
 SESSION_CACHE: dict[int, dict] = {}
-SESSION_TIMEOUT = 7200  # 2 hours
+SESSION_CACHE_MAX_SIZE = 500
+SESSION_CACHE_TTL_SECONDS = 7200
 
 class BaseLoginModal(discord.ui.Modal):
     """Base modal for login."""
@@ -161,12 +162,14 @@ class UnlockModal(discord.ui.Modal, title="Unlock API Access"):
             encrypted_key, salt, metadata = stored
             decrypted_key = decrypt_api_key(encrypted_key, salt, self.password.value)
             if decrypted_key and self._cache_key:
+                cleanup_expired_sessions()
+                evict_if_needed()
                 if interaction.user.id not in SESSION_CACHE:
                     SESSION_CACHE[interaction.user.id] = {}
                 SESSION_CACHE[interaction.user.id][self._service] = {
                     "key": decrypted_key,
                     "metadata": json.loads(metadata) if metadata else {},
-                    "expires": time.time() + SESSION_TIMEOUT
+                    "expires": time.time() + SESSION_CACHE_TTL_SECONDS
                 }
         await self._callback(interaction, self.password.value)
 
@@ -176,6 +179,14 @@ class Login(commands.Cog):
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._session_cleanup.start()
+
+    @tasks.loop(minutes=10)
+    async def _session_cleanup(self):
+        cleanup_expired_sessions()
+
+    def cog_unload(self):
+        self._session_cleanup.cancel()
     
     @app_commands.command(name="login", description="Store your API key (encrypted with your password)")
     @app_commands.choices(service=[
@@ -242,6 +253,45 @@ def clear_user_session(user_id: int) -> bool:
         return True
     return False
 
+def cleanup_expired_sessions() -> int:
+    """Remove expired sessions and return count removed."""
+    now = time.time()
+    removed = 0
+    for user_id in list(SESSION_CACHE.keys()):
+        services = SESSION_CACHE[user_id]
+        for service in list(services.keys()):
+            if now >= services[service]["expires"]:
+                del services[service]
+                removed += 1
+        if not services:
+            del SESSION_CACHE[user_id]
+    return removed
+
+def evict_if_needed() -> None:
+    """Evict oldest sessions if cache exceeds max size."""
+    cleanup_expired_sessions()
+
+    total = sum(len(services) for services in SESSION_CACHE.values())
+    if total <= SESSION_CACHE_MAX_SIZE:
+        return
+    
+    # list of expires, userid, service
+    entries = []
+    for user_id, services in SESSION_CACHE.items():
+        for service, session in services.items():
+            entries.append((session["expires"], user_id, service))
+    
+    entries.sort(key=lambda x: x[0])
+
+    idx = 0
+    while total > SESSION_CACHE_MAX_SIZE and idx < len(entries):
+        _, user_id, service = entries[idx]
+        if user_id in SESSION_CACHE and service in SESSION_CACHE[user_id]:
+            del SESSION_CACHE[user_id][service]
+            total -= 1
+            if not SESSION_CACHE[user_id]:
+                del SESSION_CACHE[user_id]
+        idx += 1
 
 async def get_api_key_for_user(
     interaction: discord.Interaction,
@@ -256,7 +306,7 @@ async def get_api_key_for_user(
     if user_id in SESSION_CACHE and service in SESSION_CACHE[user_id]:
         session = SESSION_CACHE[user_id][service]
         if time.time() < session["expires"]:
-            session["expires"] = time.time() + SESSION_TIMEOUT
+            session["expires"] = time.time() + SESSION_CACHE_TTL_SECONDS
             return session["key"]
         else:
             del SESSION_CACHE[user_id][service]
@@ -274,12 +324,14 @@ async def get_api_key_for_user(
     decrypted_key = decrypt_api_key(encrypted_key, salt, password)
     
     if decrypted_key:
+        cleanup_expired_sessions()
+        evict_if_needed()
         if user_id not in SESSION_CACHE:
             SESSION_CACHE[user_id] = {}
         SESSION_CACHE[user_id][service] = {
             "key": decrypted_key,
             "metadata": json.loads(metadata) if metadata else {},
-            "expires": time.time() + SESSION_TIMEOUT
+            "expires": time.time() + SESSION_CACHE_TTL_SECONDS
         }
     
     return decrypted_key
