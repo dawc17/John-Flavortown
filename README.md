@@ -72,12 +72,19 @@ Environment variables:
 | /login     | Store your API key for Flavortown or Hackatime |
 | /logout    | Remove stored API keys                       |
 | /status    | Check which services you are logged into     |
-| /search    | Search for users or projects                 |
-| /list      | List shop items or projects                  |
-| /profile   | Show Flavortown profile                      |
-| /time      | Show Hackatime coding time today             |
-| /overlap   | Compare stats with a random user             |
-| /health    | Show bot health information                  |
+| /search         | Search for users or projects                 |
+| /list           | List shop items or projects                  |
+| /profile        | Show Flavortown profile                      |
+| /time           | Show Hackatime coding time today             |
+| /overlap        | Compare stats with a random user             |
+| /health         | Show bot health information                  |
+| /project-create | Create a project                             |
+| /project-update | Update a project                             |
+| /project-mine   | List your projects                           |
+| /devlog-create  | Create a devlog entry                        |
+| /devlog-list    | List recent devlogs                          |
+| /devlog-view    | View a devlog by ID                          |
+| /project-devlogs| List devlogs for a project                   |
 
 ## Data Storage
 
@@ -104,7 +111,11 @@ Key files:
 - bot/config.py environment configuration
 - bot/utils.py shared helpers
 - bot/cogs/login.py authentication commands
-- bot/cogs/commands.py search, list, time, and health commands
+- bot/cogs/views.py pagination and confirmation views
+- bot/cogs/search.py search and list commands
+- bot/cogs/devlogs.py devlog commands
+- bot/cogs/projects.py project commands
+- bot/cogs/system.py health and time commands
 - bot/cogs/overlap.py comparison command
 - bot/cogs/profile.py profile command
 
