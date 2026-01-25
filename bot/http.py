@@ -5,6 +5,7 @@ from typing import Any
 import requests
 
 logger = logging.getLogger(__name__)
+_SESSION = requests.Session()
 
 
 class HTTPAPIError(Exception):
@@ -33,7 +34,7 @@ def _request(
 
     for attempt in range(max_retries + 1):
         try:
-            response = requests.request(
+            response = _SESSION.request(
                 method,
                 url,
                 headers=headers,

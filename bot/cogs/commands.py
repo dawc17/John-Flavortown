@@ -16,14 +16,23 @@ from discord.ext import commands
 
 from bot.cogs.login import require_auth, get_api_key_for_user, UnlockModal
 from bot.storage import user_has_key
-from bot.api import get_users, get_projects, get_shop, get_self, get_project_by_id, APIError
-from bot.hackatime import get_time_today, HackatimeAPIError
+from bot.api import get_users, get_projects, get_shop, get_self, get_project_by_id
+from bot.errors import APIError, HackatimeError, StorageError
+from bot.hackatime import get_time_today
+from bot.config import (
+    PAGINATION_VIEW_TIMEOUT_SECONDS,
+    SHOP_PAGE_SIZE,
+    PROJECT_PAGE_SIZE,
+    SEARCH_USERS_PAGE_SIZE,
+    SEARCH_PROJECTS_PAGE_SIZE,
+)
+from bot.utils import clamp_page, calculate_total_pages, send_error
 
 
 class PaginationView(discord.ui.View):
     """Base pagination view with Previous/Next buttons."""
     
-    def __init__(self, api_key: str, current_page: int, total_pages: int, timeout: float = 180):
+    def __init__(self, api_key: str, current_page: int, total_pages: int, timeout: float = PAGINATION_VIEW_TIMEOUT_SECONDS):
         super().__init__(timeout=timeout)
         self.api_key = api_key
         self.current_page = current_page
@@ -43,8 +52,11 @@ class PaginationView(discord.ui.View):
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page -= 1
         self._update_buttons()
-        embed = await self.get_embed(self.current_page)
-        await interaction.response.edit_message(embed=embed, view=self)
+        try:
+            embed = await self.get_embed(self.current_page)
+            await interaction.response.edit_message(embed=embed, view=self)
+        except APIError as e:
+            await send_error(interaction, f"API error: {e}")
     
     @discord.ui.button(label="Page 1/1", style=discord.ButtonStyle.primary, disabled=True)
     async def page_label(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -54,8 +66,11 @@ class PaginationView(discord.ui.View):
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page += 1
         self._update_buttons()
-        embed = await self.get_embed(self.current_page)
-        await interaction.response.edit_message(embed=embed, view=self)
+        try:
+            embed = await self.get_embed(self.current_page)
+            await interaction.response.edit_message(embed=embed, view=self)
+        except APIError as e:
+            await send_error(interaction, f"API error: {e}")
 
 
 class SearchUserView(PaginationView):
@@ -77,7 +92,7 @@ class SearchUserView(PaginationView):
         if not items:
             embed.description = f"No users found matching '{self.query}'."
         
-        for user in items[:25]:
+        for user in items[:SEARCH_USERS_PAGE_SIZE]:
             d_name = user.get("display_name") or "Unknown"
             c_count = user.get("cookies") if user.get("cookies") is not None else 0
             s_id = user.get("slack_id") or "N/A"
@@ -109,7 +124,7 @@ class SearchProjectView(PaginationView):
         if not items:
             embed.description = f"No projects found matching '{self.query}'."
             
-        for project in items[:20]:
+        for project in items[:SEARCH_PROJECTS_PAGE_SIZE]:
             title = project.get("title") or "Unknown"
             desc = project.get("description") or "-"
             if len(desc) > 100:
@@ -128,7 +143,7 @@ class ShopListView(PaginationView):
     def __init__(self, api_key: str, items: list, current_page: int, total_pages: int):
         super().__init__(api_key, current_page, total_pages)
         self.items = items
-        self.per_page = 10
+        self.per_page = SHOP_PAGE_SIZE
     
     async def get_embed(self, page: int) -> discord.Embed:
         start_idx = (page - 1) * self.per_page
@@ -176,7 +191,7 @@ class ProjectListView(PaginationView):
         if not items:
             embed.description = "No projects found on this page."
         
-        for project in items[:20]:
+        for project in items[:PROJECT_PAGE_SIZE]:
             title = project.get("title") or "Unknown"
             desc = project.get("description") or "-"
             if len(desc) > 80:
@@ -221,7 +236,7 @@ class Commands(commands.Cog):
                 result = cur.fetchone()
                 if result and result[0] == "ok":
                     return "OK"
-                return f"Check: {result[0] if result else "unknown"}"
+                return f"Check: {result[0] if result else 'unknown'}"
         except Exception as e:
             return f"Error: {type(e).__name__}"
 
@@ -229,10 +244,16 @@ class Commands(commands.Cog):
         """Execute the search with a valid API key."""
         try:
             if category == "users":
+                requested_page = page
                 data = get_users(api_key, page=page, query=query)
                 items = data.get("users", [])
                 pagination = data.get("pagination", {})
-                total_pages = pagination.get("total_pages", 1)
+                total_pages = pagination.get("total_pages", 1) or 1
+                page = clamp_page(page, total_pages)
+
+                if page != requested_page:
+                    data = get_users(api_key, page=page, query=query)
+                    items = data.get("users", [])
                 
                 view = SearchUserView(api_key, query, page, total_pages)
                 embed = await view.get_embed(page)
@@ -243,9 +264,14 @@ class Commands(commands.Cog):
                     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
             else:
+                requested_page = page
                 data = get_projects(api_key, page=page, query=query)
                 pagination = data.get("pagination", {})
-                total_pages = pagination.get("total_pages", 1)
+                total_pages = pagination.get("total_pages", 1) or 1
+                page = clamp_page(page, total_pages)
+
+                if page != requested_page:
+                    data = get_projects(api_key, page=page, query=query)
                 
                 view = SearchProjectView(api_key, query, page, total_pages)
                 embed = await view.get_embed(page)
@@ -256,10 +282,7 @@ class Commands(commands.Cog):
                     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
         except APIError as e:
-            await interaction.response.send_message(
-                f"API Error: {e}",
-                ephemeral=True
-            )
+            await send_error(interaction, f"API error: {e}")
 
     async def _do_list(self, interaction: discord.Interaction, api_key: str, category: str, page: int):
         """Execute the list command with a valid API key."""
@@ -272,9 +295,8 @@ class Commands(commands.Cog):
                 
                 items.sort(key=lambda x: x.get("id", 0))
 
-                PER_PAGE = 10
                 total_items = len(items)
-                total_pages = (total_items + PER_PAGE - 1) // PER_PAGE
+                total_pages = calculate_total_pages(total_items, SHOP_PAGE_SIZE)
                 
                 if page < 1: page = 1
                 if page > total_pages: page = total_pages
@@ -301,10 +323,7 @@ class Commands(commands.Cog):
                     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
                 
         except APIError as e:
-            await interaction.response.send_message(
-                f"API Error: {e}",
-                ephemeral=True
-            )
+            await send_error(interaction, f"API error: {e}")
 
     @app_commands.command(name="search", description="Search for users or projects")
     @app_commands.choices(
@@ -321,21 +340,33 @@ class Commands(commands.Cog):
         page: int = 1,
     ):
         """Search for users or projects by query."""
-        if not user_has_key(interaction.user.id):
-            await interaction.response.send_message(
-                "You need to log in first! Use `/login` to store your API key.",
-                ephemeral=True
-            )
+        try:
+            if not user_has_key(interaction.user.id):
+                await interaction.response.send_message(
+                    "You need to log in first! Use `/login` to store your API key.",
+                    ephemeral=True
+                )
+                return
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
             return
 
-        api_key = await get_api_key_for_user(interaction)
+        try:
+            api_key = await get_api_key_for_user(interaction)
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
         if api_key:
             await self._do_search(interaction, api_key, category.value, query, page)
             return
         
         # no cached key, prompt for password
         async def on_password(modal_interaction: discord.Interaction, password: str):
-            key = await get_api_key_for_user(modal_interaction, password)
+            try:
+                key = await get_api_key_for_user(modal_interaction, password)
+            except StorageError:
+                await send_error(modal_interaction, "Storage error. Please try again in a moment.")
+                return
             if not key:
                 await modal_interaction.response.send_message(
                     "Incorrect password! Please try again.",
@@ -362,20 +393,32 @@ class Commands(commands.Cog):
         page: int = 1,
     ):
         """List shop items or projects."""
-        if not user_has_key(interaction.user.id):
-            await interaction.response.send_message(
-                "You need to log in first! Use `/login` to store your API key.",
-                ephemeral=True
-            )
+        try:
+            if not user_has_key(interaction.user.id):
+                await interaction.response.send_message(
+                    "You need to log in first! Use `/login` to store your API key.",
+                    ephemeral=True
+                )
+                return
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
             return
 
-        api_key = await get_api_key_for_user(interaction)
+        try:
+            api_key = await get_api_key_for_user(interaction)
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
         if api_key:
             await self._do_list(interaction, api_key, category.value, page)
             return
         
         async def on_password(modal_interaction: discord.Interaction, password: str):
-            key = await get_api_key_for_user(modal_interaction, password)
+            try:
+                key = await get_api_key_for_user(modal_interaction, password)
+            except StorageError:
+                await send_error(modal_interaction, "Storage error. Please try again in a moment.")
+                return
             if not key:
                 await modal_interaction.response.send_message(
                     "Incorrect password! Please try again.",
@@ -425,8 +468,8 @@ class Commands(commands.Cog):
                 color=discord.Color.purple()
             )
             await interaction.response.send_message(embed=embed)
-        except HackatimeAPIError as e:
-            await interaction.response.send_message(f"Hackatime Error: {e}", ephemeral=True)
+        except HackatimeError as e:
+            await send_error(interaction, f"Hackatime error: {e}")
 
 
 async def setup(bot: commands.Bot):

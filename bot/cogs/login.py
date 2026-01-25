@@ -16,6 +16,8 @@ import requests
 
 from bot.crypto import encrypt_api_key, decrypt_api_key
 from bot.storage import store_encrypted_key, get_encrypted_key, delete_user_key, user_has_key
+from bot.errors import StorageError
+from bot.utils import send_error
 from bot.api import API_BASE_URL
 
 # keys stored only in ram
@@ -56,7 +58,11 @@ class BaseLoginModal(discord.ui.Modal):
         encrypted_key, salt = encrypt_api_key(api_key, self.password.value)
         
         meta_str = json.dumps(metadata) if metadata else None
-        store_encrypted_key(interaction.user.id, service, encrypted_key, salt, meta_str)
+        try:
+            store_encrypted_key(interaction.user.id, service, encrypted_key, salt, meta_str)
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
         
         await interaction.response.send_message(
             f"**Logged in to {service.title()} successfully!**\n\n"
@@ -155,7 +161,11 @@ class UnlockModal(discord.ui.Modal, title="Unlock API Access"):
     
     async def on_submit(self, interaction: discord.Interaction):
         # attempt to decrypt the key
-        stored = get_encrypted_key(interaction.user.id, self._service)
+        try:
+            stored = get_encrypted_key(interaction.user.id, self._service)
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
         if stored:
             encrypted_key, salt, metadata = stored
             decrypted_key = decrypt_api_key(encrypted_key, salt, self.password.value)
@@ -210,22 +220,29 @@ class Login(commands.Cog):
         
         tgt = service.value if service.value != "all" else None
         
-        if delete_user_key(interaction.user.id, tgt):
-            await interaction.response.send_message(
-                f"Your API key(s) for {service.name} have been deleted and session cleared.",
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                "No keys found to delete.",
-                ephemeral=True
-            )
+        try:
+            if delete_user_key(interaction.user.id, tgt):
+                await interaction.response.send_message(
+                    f"Your API key(s) for {service.name} have been deleted and session cleared.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    "No keys found to delete.",
+                    ephemeral=True
+                )
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
     
     @app_commands.command(name="status", description="Check if you have a stored API key")
     async def status(self, interaction: discord.Interaction):
         """Check if the user has a stored key."""
-        ft = user_has_key(interaction.user.id, "flavortown")
-        ht = user_has_key(interaction.user.id, "hackatime")
+        try:
+            ft = user_has_key(interaction.user.id, "flavortown")
+            ht = user_has_key(interaction.user.id, "hackatime")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
         
         msg = []
         if ft: msg.append("- Flavortown: ✅ Stored")
@@ -353,15 +370,23 @@ def require_auth(service="flavortown"):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
-            if not user_has_key(interaction.user.id, service):
-                await interaction.response.send_message(
-                    f"You need to log in to **{service.title()}** first! Use `/login`.",
-                    ephemeral=True
-                )
+            try:
+                if not user_has_key(interaction.user.id, service):
+                    await interaction.response.send_message(
+                        f"You need to log in to **{service.title()}** first! Use `/login`.",
+                        ephemeral=True
+                    )
+                    return
+            except StorageError:
+                await send_error(interaction, "Storage error. Please try again in a moment.")
                 return
             
             async def on_password(modal_interaction: discord.Interaction, password: str):
-                api_key = await get_api_key_for_user(modal_interaction, password, service)
+                try:
+                    api_key = await get_api_key_for_user(modal_interaction, password, service)
+                except StorageError:
+                    await send_error(modal_interaction, "Storage error. Please try again in a moment.")
+                    return
                 if not api_key:
                     await modal_interaction.response.send_message(
                         "Incorrect password! Please try again.",
@@ -370,7 +395,11 @@ def require_auth(service="flavortown"):
                     return
                 await func(self, modal_interaction, *args, **kwargs)
             
-            key = await get_api_key_for_user(interaction, None, service)
+            try:
+                key = await get_api_key_for_user(interaction, None, service)
+            except StorageError:
+                await send_error(interaction, "Storage error. Please try again in a moment.")
+                return
             if key:
                 await func(self, interaction, *args, **kwargs)
             else:

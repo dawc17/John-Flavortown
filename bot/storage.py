@@ -8,18 +8,16 @@ Hacky at best, but it works.
 """
 
 import sqlite3
-import os
 from pathlib import Path
 import threading
+
+from bot.errors import StorageError
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 DB_PATH = DATA_DIR / "keys.db"
 
 _db_initialized = False
 _db_init_lock = threading.Lock()
-
-class StorageError(Exception):
-    pass
 
 def _get_connection() -> sqlite3.Connection:
     """Get a database connection, creating the database and tables if needed."""
@@ -88,13 +86,13 @@ def _get_connection() -> sqlite3.Connection:
     return conn
 
 
-def init_db():
+def init_db() -> None:
     """Initialize the database schema."""
     conn = _get_connection()
     conn.close()
 
 
-def store_encrypted_key(discord_id: int, service: str, encrypted_key: str, salt: str, metadata: str = None):
+def store_encrypted_key(discord_id: int, service: str, encrypted_key: str, salt: str, metadata: str | None = None) -> None:
     """
     Store an encrypted API key for a user and service.
     
@@ -149,7 +147,7 @@ def get_encrypted_key(discord_id: int, service: str = "flavortown") -> tuple[str
     return None
 
 
-def delete_user_key(discord_id: int, service: str = None) -> bool:
+def delete_user_key(discord_id: int, service: str | None = None) -> bool:
     """
     Delete a user's stored key(s).
     

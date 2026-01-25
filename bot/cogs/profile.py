@@ -4,24 +4,14 @@ from discord.ext import commands
 
 from bot.cogs.login import UnlockModal, get_api_key_for_user
 from bot.storage import user_has_key
-from bot.api import get_self, get_project_by_id, get_project_devlogs, APIError
+from bot.api import get_self, get_project_by_id, get_project_devlogs
+from bot.errors import APIError, StorageError
+from bot.utils import format_seconds, send_error
 
 
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-
-    def _format_seconds(self, seconds: int) -> str:
-        if seconds < 60:
-            return f"{seconds} secs"
-        if seconds < 3600:
-            mins = seconds // 60
-            return f"{mins} min{'s' if mins != 1 else ''}"
-        hours = seconds // 3600
-        mins = (seconds % 3600) // 60
-        if mins > 0:
-            return f"{hours} hr{'s' if hours != 1 else ''} {mins} min{'s' if mins != 1 else ''}"
-        return f"{hours} hr{'s' if hours != 1 else ''}"
 
     def _flavor_rank(self, cookies: int, devlog_seconds_total: int) -> tuple[str, int, int]:
         score = max(0, cookies) + max(0, devlog_seconds_total // 3600)
@@ -71,12 +61,12 @@ class Profile(commands.Cog):
             embed.add_field(name="Cookies", value=f"**{cookies}** 🍪", inline=True)
             embed.add_field(
                 name="Devlog Time (Total)",
-                value=f"**{self._format_seconds(devlog_seconds_total)}**",
+                value=f"**{format_seconds(devlog_seconds_total)}**",
                 inline=True
             )
             embed.add_field(
                 name="Devlog Time (Today)",
-                value=f"**{self._format_seconds(devlog_seconds_today)}**",
+                value=f"**{format_seconds(devlog_seconds_today)}**",
                 inline=True
             )
 
@@ -132,10 +122,7 @@ class Profile(commands.Cog):
             else:
                 await interaction.response.send_message(embed=embed)
         except APIError as e:
-            if interaction.response.is_done():
-                await interaction.followup.send(f"API Error: {e}", ephemeral=True)
-            else:
-                await interaction.response.send_message(f"API Error: {e}", ephemeral=True)
+            await send_error(interaction, f"API error: {e}")
 
     @app_commands.command(
         name="profile",
@@ -143,21 +130,33 @@ class Profile(commands.Cog):
     )
     async def profile(self, interaction: discord.Interaction):
         """Show profile - requires authentication."""
-        if not user_has_key(interaction.user.id):
-            await interaction.response.send_message(
-                "You need to log in first! Use `/login` to store your API key.",
-                ephemeral=True
-            )
+        try:
+            if not user_has_key(interaction.user.id):
+                await interaction.response.send_message(
+                    "You need to log in first! Use `/login` to store your API key.",
+                    ephemeral=True
+                )
+                return
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
             return
         
-        api_key = await get_api_key_for_user(interaction)
+        try:
+            api_key = await get_api_key_for_user(interaction)
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
         if api_key:
             await self._show_profile(interaction, api_key)
             return
         
         # no cached key, need to prompt for password
         async def on_password(modal_interaction: discord.Interaction, password: str):
-            api_key = await get_api_key_for_user(modal_interaction, password)
+            try:
+                api_key = await get_api_key_for_user(modal_interaction, password)
+            except StorageError:
+                await send_error(modal_interaction, "Storage error. Please try again in a moment.")
+                return
             if not api_key:
                 if modal_interaction.response.is_done():
                     await modal_interaction.followup.send(

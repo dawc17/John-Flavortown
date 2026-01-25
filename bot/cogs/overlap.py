@@ -4,25 +4,9 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.cogs.login import require_auth, get_api_key_for_user
-from bot.storage import user_has_key
-from bot.api import get_users, get_user_by_id, get_self, APIError
-
-
-def format_seconds(seconds: int) -> str:
-    """Format seconds into a human-readable string."""
-    if not seconds:
-        return "0 secs"
-    if seconds < 60:
-        return f"{seconds} secs"
-    elif seconds < 3600:
-        mins = seconds // 60
-        return f"{mins} min{'s' if mins != 1 else ''}"
-    else:
-        hours = seconds // 3600
-        mins = (seconds % 3600) // 60
-        if mins > 0:
-            return f"{hours} hr{'s' if hours != 1 else ''} {mins} min{'s' if mins != 1 else ''}"
-        return f"{hours} hr{'s' if hours != 1 else ''}"
+from bot.api import get_users, get_user_by_id, get_self
+from bot.errors import APIError, StorageError
+from bot.utils import format_seconds, send_error
 
 
 def compare_bar(you: int, them: int, width: int = 10) -> str:
@@ -46,9 +30,13 @@ class Overlap(commands.Cog):
     @require_auth(service="flavortown")
     async def overlap(self, interaction: discord.Interaction):
         """Compare your stats with a random user."""
-        api_key = await get_api_key_for_user(interaction, service="flavortown")
+        try:
+            api_key = await get_api_key_for_user(interaction, service="flavortown")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
         if not api_key:
-            await interaction.response.send_message("Failed to retrieve API key.", ephemeral=True)
+            await send_error(interaction, "Failed to retrieve API key.")
             return
 
         try:
@@ -65,7 +53,7 @@ class Overlap(commands.Cog):
             users_list = users_data.get("users", [])
             
             if not users_list:
-                await interaction.response.send_message("Could not find any users to compare with!", ephemeral=True)
+                await send_error(interaction, "Could not find any users to compare with!")
                 return
             
             other_users = [u for u in users_list if u.get("id") != my_id]
@@ -144,7 +132,7 @@ class Overlap(commands.Cog):
             await interaction.response.send_message(embed=embed)
             
         except APIError as e:
-            await interaction.response.send_message(f"API Error: {e}", ephemeral=True)
+            await send_error(interaction, f"API error: {e}")
 
 
 async def setup(bot: commands.Bot):
