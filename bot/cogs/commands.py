@@ -16,7 +16,7 @@ from discord.ext import commands
 
 from bot.cogs.login import require_auth, get_api_key_for_user, UnlockModal
 from bot.storage import user_has_key
-from bot.api import create_project, update_project, create_devlog, get_users, get_projects, get_shop, get_self, get_project_by_id
+from bot.api import create_project, update_project, create_devlog, create_devlog_with_attachments, get_users, get_projects, get_shop, get_self, get_project_by_id
 from bot.errors import APIError, HackatimeError, StorageError
 from bot.hackatime import get_time_today
 from bot.config import (
@@ -27,7 +27,7 @@ from bot.config import (
     SEARCH_PROJECTS_PAGE_SIZE,
 )
 from bot.utils import (clamp_page, calculate_total_pages, send_error, 
-                       parse_media_urls, validate_duration_seconds, normalize_optional, require_non_empty, validate_url
+                       parse_media_urls, normalize_optional, require_non_empty, validate_url
                        )
 
 class ConfirmView(discord.ui.View):
@@ -597,8 +597,10 @@ class Commands(commands.Cog):
         interaction: discord.Interaction,
         project_id: int,
         body: str,
-        duration_seconds: int,
         media_urls: str | None = None,
+        attachment1: discord.Attachment | None = None,
+        attachment2: discord.Attachment | None = None,
+        attachment3: discord.Attachment | None = None,
     ):
         try:
             api_key = await get_api_key_for_user(interaction, service="flavortown")
@@ -611,14 +613,28 @@ class Commands(commands.Cog):
         
         try:
             body = require_non_empty(body, "body")
-            duration_seconds = validate_duration_seconds(duration_seconds)
             urls = parse_media_urls(media_urls)
         except ValueError as e:
             await send_error(interaction, str(e))
             return
         
         try:
-            created = create_devlog(api_key, project_id, body, duration_seconds, urls)
+            attachments = [a for a in [attachment1, attachment2, attachment3] if a is not None]
+            file_payloads: list[tuple[str, bytes, str]] | None = None
+            if attachments:
+                file_payloads = []
+                for attachment in attachments:
+                    content = await attachment.read()
+                    content_type = attachment.content_type or "application/octet-stream"
+                    file_payloads.append((attachment.filename, content, content_type))
+
+            created = create_devlog_with_attachments(
+                api_key,
+                project_id,
+                body,
+                urls,
+                file_payloads,
+            )
             devlog_id = created.get("id", "unknown")
             await interaction.response.send_message(f"Devlog created. ID: {devlog_id}", ephemeral=True)
         except APIError as e:

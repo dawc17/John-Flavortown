@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from bot.http import _request
+from bot.http import _request, _request_multipart
 from bot.errors import APIError
 
 API_BASE_URL = "https://flavortown.hackclub.com"
@@ -69,7 +69,6 @@ class ProjectUpdatePayload(TypedDict, total=False):
 
 class DevlogCreatePayload(TypedDict, total=False):
   body: str
-  duration_seconds: int
   media_urls: list[str]
 
 
@@ -172,7 +171,7 @@ def update_project(
   payload: ProjectUpdatePayload = {}
   if title: payload["title"] = title
   if description: payload["description"] = description
-  if repo_url: payload["repo_url"] = description
+  if repo_url: payload["repo_url"] = repo_url
   if demo_url: payload["demo_url"] = demo_url
   if readme_url: payload["readme_url"] = readme_url
   if not payload:
@@ -183,11 +182,45 @@ def create_devlog(
     api_key: str,
     project_id: int,
     body: str,
-    duration_seconds: int,
     media_urls: list[str] | None = None
 ) -> DevlogItem:
   url = f"{API_BASE_URL}/api/v1/projects/{project_id}/devlogs"
-  payload: DevlogCreatePayload = {"body": body, "duration_seconds": duration_seconds}
+  payload: DevlogCreatePayload = {"body": body}
   if media_urls:
     payload["media_urls"] = media_urls
   return _request("POST", url, headers=_get_headers(api_key), json=payload, action="Create devlog", service="flavortown", error_class=APIError)
+
+
+def create_devlog_with_attachments(
+    api_key: str,
+    project_id: int,
+    body: str,
+    media_urls: list[str] | None = None,
+    attachments: list[tuple[str, bytes, str]] | None = None,
+) -> DevlogItem:
+  url = f"{API_BASE_URL}/api/v1/projects/{project_id}/devlogs"
+
+  data: list[tuple[str, str]] = [("body", body)]
+  if media_urls:
+    for media_url in media_urls:
+      data.append(("media_urls[]", media_url))
+
+  files: list[tuple[str, tuple[str, bytes, str]]] | None = None
+  if attachments:
+    files = []
+    for filename, content, content_type in attachments:
+      files.append(("attachments[]", (filename, content, content_type)))
+
+  headers = _get_headers(api_key)
+  headers.pop("Content-Type", None)
+
+  return _request_multipart(
+    "POST",
+    url,
+    headers=headers,
+    data=data,
+    files=files,
+    action="Create devlog",
+    service="flavortown",
+    error_class=APIError,
+  )

@@ -72,11 +72,6 @@ def validate_url(value: str | None, field: str) -> str | None:
         raise ValueError(f"{field} must start with http:// or https://")
     return v
 
-def validate_duration_seconds(value: int) -> int:
-    if value < 0:
-        raise ValueError("Duration must be 0 or greater.")
-    return value
-
 def parse_media_urls(value: str | None) -> list[str]:
     if value is None:
         return []
@@ -84,7 +79,7 @@ def parse_media_urls(value: str | None) -> list[str]:
     for v in parts:
         if not (v.startswith("http://") or v.startswith("https://")):
             raise ValueError("All media URLs must start with http:// or https://")
-        return parts
+    return parts
 
 async def send_error(
     interaction: discord.Interaction,

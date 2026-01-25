@@ -81,3 +81,69 @@ def _request(
                 exc_info=True,
             )
             raise error_class(_format_error(action, url, None, str(e)))
+
+
+def _request_multipart(
+    method: str,
+    url: str,
+    *,
+    headers: dict[str, str],
+    data: dict[str, str] | list[tuple[str, str]],
+    files: list[tuple[str, tuple[str, bytes, str]]] | None = None,
+    timeout: int = 10,
+    action: str = "Request",
+    service: str = "api",
+    error_class: type[HTTPAPIError] = HTTPAPIError,
+) -> Any:
+    max_retries = 2
+    backoffs = [0.5, 1.0]
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = _SESSION.request(
+                method,
+                url,
+                headers=headers,
+                data=data,
+                files=files,
+                timeout=timeout,
+            )
+
+            if response.status_code in (502, 503, 504) and attempt < max_retries:
+                time.sleep(backoffs[attempt])
+                continue
+
+            if response.status_code == 401:
+                logger.error(
+                    "event=api_error service=%s method=%s url=%s status=%s",
+                    service,
+                    method,
+                    url,
+                    response.status_code,
+                )
+                raise error_class(_format_error(action, url, 401, "Invalid API key or unauthorized access."))
+
+            response.raise_for_status()
+            return response.json()
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response else None
+            detail = e.response.text.strip() if e.response and e.response.text else str(e)
+            logger.error(
+                "event=api_error service=%s method=%s url=%s status=%s detail=%s",
+                service,
+                method,
+                url,
+                status,
+                detail,
+            )
+            raise error_class(_format_error(action, url, status, detail))
+        except requests.RequestException as e:
+            logger.error(
+                "event=api_exception service=%s method=%s url=%s error=%s",
+                service,
+                method,
+                url,
+                str(e),
+                exc_info=True,
+            )
+            raise error_class(_format_error(action, url, None, str(e)))
