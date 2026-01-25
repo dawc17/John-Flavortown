@@ -16,7 +16,7 @@ from discord.ext import commands
 
 from bot.cogs.login import require_auth, get_api_key_for_user, UnlockModal
 from bot.storage import user_has_key
-from bot.api import create_project, update_project, create_devlog, create_devlog_with_attachments, get_users, get_projects, get_shop, get_self, get_project_by_id
+from bot.api import create_project, update_project, create_devlog, create_devlog_with_attachments, get_users, get_projects, get_shop, get_self, get_project_by_id, list_devlogs, get_devlog_by_id
 from bot.errors import APIError, HackatimeError, StorageError
 from bot.hackatime import get_time_today
 from bot.config import (
@@ -89,6 +89,37 @@ class PaginationView(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
         except APIError as e:
             await send_error(interaction, f"API error: {e}")
+
+class DevlogListView(PaginationView):
+    def __init__(self, api_key: str, current_page: int, total_pages: int):
+        super().__init__(api_key, current_page, total_pages)
+
+    async def get_embed(self, page: int) -> discord.Embed:
+        data = list_devlogs(self.api_key, page=page)
+        devlogs = data.get("devlogs", [])
+        total_count = data.get("pagination", {}).get("total_count", "Unknown")
+
+        embed = discord.Embed(
+            title="Devlogs",
+            description=f"Total: {total_count} (Page {page})",
+            color=discord.Color.blue()
+        )
+
+        if not devlogs:
+            embed.description = "No devlogs found on this page."
+            return embed
+        
+        for d in devlogs[:10]:
+            body = (d.get("body") or "").strip()
+            if len(body) > 120:
+                body = body[:117] + "..."
+            devlog_id = d.get("id", "unknown")
+            embed.add_field(
+                name=f"Devlog {devlog_id}",
+                value=body or "No body",
+                inline=False
+            )
+        return embed
 
 
 class SearchUserView(PaginationView):
@@ -488,6 +519,34 @@ class Commands(commands.Cog):
             await interaction.response.send_message(embed=embed)
         except HackatimeError as e:
             await send_error(interaction, f"Hackatime error: {e}")
+
+    @app_commands.command(name="devlog-list", description="List recent devlogs")
+    @require_auth(service="flavortown")
+    async def devlog_list(self, interaction: discord.Interaction, page: int = 1):
+        try:
+            api_key = await get_api_key_for_user(interaction, service="flavortown")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
+        if not api_key:
+            await send_error(interaction, "Failed to retrieve API key.")
+            return
+
+        try:
+            data = list_devlogs(api_key, page=page)
+            pagination = data.get("pagination", {})
+            total_pages = pagination.get("total_pages", 1) or 1
+            page = clamp_page(page, total_pages)
+
+            view = DevlogListView(api_key, page, total_pages)
+            embed = await view.get_embed(page)
+
+            if total_pages <= 1:
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=embed, view=view, ephemeral=True) 
+        except APIError as e:
+            await send_error(interaction, f"API error {e}")
 
     @app_commands.command(name="project-create", description="Create a Flavortown project")
     @require_auth(service="flavortown")
