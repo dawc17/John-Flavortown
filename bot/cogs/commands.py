@@ -16,7 +16,7 @@ from discord.ext import commands
 
 from bot.cogs.login import require_auth, get_api_key_for_user, UnlockModal
 from bot.storage import user_has_key
-from bot.api import create_project, update_project, create_devlog, create_devlog_with_attachments, get_users, get_projects, get_shop, get_self, get_project_by_id, list_devlogs, get_devlog_by_id
+from bot.api import create_project, update_project, create_devlog, create_devlog_with_attachments, get_users, get_projects, get_shop, get_self, get_project_by_id, list_devlogs, get_devlog_by_id, get_project_devlogs
 from bot.errors import APIError, HackatimeError, StorageError
 from bot.hackatime import get_time_today
 from bot.config import (
@@ -121,6 +121,37 @@ class DevlogListView(PaginationView):
             )
         return embed
 
+class ProjectDevlogListView(PaginationView):
+    def __init__(self, api_key: str, project_id: int, current_page: int, total_pages: int):
+        super().__init__(api_key, current_page, total_pages)
+        self.project_id = project_id
+
+    async def get_embed(self, page: int) -> discord.Embed:
+        data = get_project_devlogs(self.api_key, self.project_id, page=page)
+        devlogs = data.get("devlogs", [])
+        total_count = data.get("pagination", {}).get("total_count", "Unknown")
+
+        embed = discord.Embed(
+            title=f"Project {self.project_id} Devlogs",
+            description=f"Total: {total_count} (Page {page})",
+            color=discord.Color.blue()
+        )
+
+        if not devlogs:
+            embed.description = "No devlogs found on this page."
+            return embed
+        
+        for d in devlogs[:10]:
+            body = (d.get("body") or "").strip()
+            if len(body) > 120:
+                body = body[:117] + "..."
+            devlog_id = d.get("id", "unknown")
+            embed.add_field(
+                name=f"Devlog {devlog_id}",
+                value=body or "No body",
+                inline=False
+            )
+        return embed
 
 class SearchUserView(PaginationView):
     def __init__(self, api_key: str, query: str, current_page: int, total_pages: int):
@@ -547,6 +578,103 @@ class Commands(commands.Cog):
                 await interaction.response.send_message(embed=embed, view=view, ephemeral=True) 
         except APIError as e:
             await send_error(interaction, f"API error {e}")
+
+    @app_commands.command(name="devlog-view", description="View a devlog by ID")
+    @require_auth(service="flavortown")
+    async def devlog_view(self, interaction: discord.Interaction, devlog_id: int):
+        try:
+            api_key = await get_api_key_for_user(interaction, service="flavortown")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
+        if not api_key:
+            await send_error(interaction, "Failed to retrieve API key.")
+            return
+        
+        try:
+            data = get_devlog_by_id(api_key, devlog_id)
+            devlog = data.get("devlog") or {}
+
+            body = (devlog.get("body") or "").strip()
+            scrapbook = devlog.get("scrapbook_url")
+
+            embed = discord.Embed(
+                title=f"Devlog {devlog_id}",
+                description=body or "No body",
+                color=discord.Color.blue()
+            )
+
+            if scrapbook:
+                embed.add_field(name="Scrapbook", value=scrapbook, inline=False)
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except APIError as e:
+            await send_error(interaction, f"API error: {e}")
+
+    @app_commands.command(name="project-devlogs", description="List devlogs for a project")
+    @require_auth(service="flavortown")
+    async def project_devlogs(self, interaction: discord.Interaction, project_id: int, page: int = 1):
+        try:
+            api_key = await get_api_key_for_user(interaction, service="flavortown")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
+        if not api_key:
+            await send_error(interaction, "Failed to retrieve API key.")
+            return
+
+        try:
+            data = get_project_devlogs(api_key, project_id, page=page)
+            pagination = data.get("pagination", {})
+            total_pages = pagination.get("total_pages", 1) or 1
+            page = clamp_page(page, total_pages)
+
+            view = ProjectDevlogListView(api_key, project_id, page, total_pages)
+            embed = await view.get_embed(page)
+
+            if total_pages <= 1:
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        except APIError as e:
+            await send_error(interaction, f"API error: {e}")
+
+    @app_commands.command(name="project-mine", description="List your own projects")
+    @require_auth(service="flavortown")
+    async def project_mine(self, interaction: discord.Interaction):
+        try:
+            api_key = await get_api_key_for_user(interaction, service="flavortown")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
+        if not api_key:
+            await send_error(interaction, "Failed to retrieve API key.")
+            return
+
+        try:
+            me = get_self(api_key)
+            project_ids = me.get("project_ids", [])
+            if not project_ids:
+                await send_error(interaction, "No projects found for your account.")
+                return
+
+            embed = discord.Embed(
+                title="Your Projects",
+                description=f"Total: {len(project_ids)}",
+                color=discord.Color.blue()
+            )
+
+            for pid in project_ids[:20]:
+                try:
+                    project = get_project_by_id(api_key, pid)
+                    title = project.get("title", "Unknown")
+                    embed.add_field(name=f"{title} (ID: {pid})", value=project.get("description") or "-", inline=False)
+                except APIError:
+                    continue
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except APIError as e:
+            await send_error(interaction, f"API error: {e}")
 
     @app_commands.command(name="project-create", description="Create a Flavortown project")
     @require_auth(service="flavortown")
