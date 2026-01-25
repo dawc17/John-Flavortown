@@ -16,7 +16,7 @@ from discord.ext import commands
 
 from bot.cogs.login import require_auth, get_api_key_for_user, UnlockModal
 from bot.storage import user_has_key
-from bot.api import get_users, get_projects, get_shop, get_self, get_project_by_id
+from bot.api import create_project, update_project, create_devlog, get_users, get_projects, get_shop, get_self, get_project_by_id
 from bot.errors import APIError, HackatimeError, StorageError
 from bot.hackatime import get_time_today
 from bot.config import (
@@ -26,8 +26,26 @@ from bot.config import (
     SEARCH_USERS_PAGE_SIZE,
     SEARCH_PROJECTS_PAGE_SIZE,
 )
-from bot.utils import clamp_page, calculate_total_pages, send_error
+from bot.utils import (clamp_page, calculate_total_pages, send_error, 
+                       parse_media_urls, validate_duration_seconds, normalize_optional, require_non_empty, validate_url
+                       )
 
+class ConfirmView(discord.ui.View):
+    def __init__(self, timeout: float = 60):
+        super().__init__(timeout=timeout)
+        self.confirmed = False
+    
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = True
+        self.stop()
+        await interaction.response.edit_message(content="Confirmed. Processing...", view=None)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = False
+        self.stop()
+        await interaction.response.edit_message(content="Cancelled.", view=None)
 
 class PaginationView(discord.ui.View):
     """Base pagination view with Previous/Next buttons."""
@@ -471,6 +489,43 @@ class Commands(commands.Cog):
         except HackatimeError as e:
             await send_error(interaction, f"Hackatime error: {e}")
 
+    @app_commands.command(name="project-create", description="Create a Flavortown project")
+    @require_auth(service="flavortown")
+    async def project_create(
+        self,
+        interaction: discord.Interaction,
+        title: str,
+        description: str | None = None,
+        repo_url: str | None = None,
+        demo_url: str | None = None,
+        readme_url: str | None = None,
+    ):
+        try:
+            api_key = await get_api_key_for_user(interaction, service="flavortown")
+        except StorageError:
+            await send_error(interaction, "Storage error. Please try again in a moment.")
+            return
+        if not api_key:
+            await send_error(interaction, "Failed to retrieve API key.")
+            return
+        
+        try:
+            title = require_non_empty(title, "title")
+            description = normalize_optional(description)
+            repo_url = validate_url(repo_url, "repo_url")
+            demo_url = validate_url(demo_url, "demo_url")
+            readme_url = validate_url(readme_url, "readme_url")
+        except ValueError as e:
+            await send_error(interaction, str(e))
+            return
+        
+        try:
+            created = create_project(api_key, title, description, repo_url, demo_url, readme_url)
+            proj_id = created.get("id", "unknown")
+            proj_title = created.get("title", title)
+            await interaction.response.send_message(f"Project created. ID: {proj_id}. Title: {proj_title}", ephemeral=True)
+        except APIError as e:
+            await send_error(interaction, f"API error: {e}")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Commands(bot))

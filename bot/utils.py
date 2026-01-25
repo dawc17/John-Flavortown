@@ -53,6 +53,38 @@ def iter_chunked(items: Iterable, size: int):
     if chunk:
         yield chunk
 
+def normalize_optional(text: str | None) -> str | None:
+    if text is None:
+        return None
+    value = text.strip()
+    return value if value else None
+
+def require_non_empty(text: str | None, field: str) -> str:
+    if text is None or not text.strip():
+        raise ValueError(f"{field} is required.")
+    return text.strip()
+
+def validate_url(value: str | None, field: str) -> str | None:
+    v = normalize_optional(value)
+    if v is None:
+        return None
+    if not (v.startswith("http://") or v.startswith("https://")):
+        raise ValueError(f"{field} must start with http:// or https://")
+    return v
+
+def validate_duration_seconds(value: int) -> int:
+    if value < 0:
+        raise ValueError("Duration must be 0 or greater.")
+    return value
+
+def parse_media_urls(value: str | None) -> list[str]:
+    if value is None:
+        return []
+    parts = [v.strip() for v in value.split(",") if v.strip()]
+    for v in parts:
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("All media URLs must start with http:// or https://")
+        return parts
 
 async def send_error(
     interaction: discord.Interaction,
