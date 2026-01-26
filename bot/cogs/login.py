@@ -268,6 +268,13 @@ def clear_user_session(user_id: int) -> bool:
         return True
     return False
 
+
+def clear_all_sessions() -> int:
+    """Clear all cached sessions and return number removed."""
+    total = sum(len(services) for services in SESSION_CACHE.values())
+    SESSION_CACHE.clear()
+    return total
+
 def cleanup_expired_sessions() -> int:
     """Remove expired sessions and return count removed."""
     now = time.time()

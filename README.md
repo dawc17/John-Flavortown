@@ -24,21 +24,21 @@ API keys are encrypted with a user provided password before storage. The bot ope
 
 1. Clone the repository.
 2. Create a virtual environment and install dependencies.
-   
+
    Windows:
-   
+
    python -m venv .venv
    .venv\Scripts\activate
    pip install -r requirements.txt
-   
+
    Linux or macOS:
-   
+
    python -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
 
 3. Create a .env file in the project root.
-   
+
    DISCORD_TOKEN=your_token_here
    GUILD_ID=your_guild_id
    LOG_LEVEL=INFO
@@ -49,7 +49,7 @@ API keys are encrypted with a user provided password before storage. The bot ope
    SEARCH_PROJECTS_PAGE_SIZE=20
 
 4. Run the bot.
-   
+
    python -m bot.main
 
 ## Configuration
@@ -64,27 +64,33 @@ Environment variables:
 - PROJECT_PAGE_SIZE. Optional. Defaults to 20.
 - SEARCH_USERS_PAGE_SIZE. Optional. Defaults to 25.
 - SEARCH_PROJECTS_PAGE_SIZE. Optional. Defaults to 20.
+- FLAVORTOWN_SERVICE_API_KEY. Optional. Used for devlog polling notifications.
+- DEVLOG_POLL_INTERVAL_SECONDS. Optional. Defaults to 600.
+- ADMIN_USER_IDS. Optional. Comma-separated Discord user IDs with admin access.
+- DEFAULT_TIMEZONE. Optional. Defaults to UTC.
+- DEFAULT_PUBLIC_OUTPUT. Optional. Defaults to false.
+- DEFAULT_SERVICE. Optional. Defaults to flavortown.
 
 ## Commands
 
-| Command    | Description                                  |
-| ---------- | -------------------------------------------- |
-| /login     | Store your API key for Flavortown or Hackatime |
-| /logout    | Remove stored API keys                       |
-| /status    | Check which services you are logged into     |
-| /search         | Search for users or projects                 |
-| /list           | List shop items or projects                  |
-| /profile        | Show Flavortown profile                      |
-| /time           | Show Hackatime coding time today             |
-| /overlap        | Compare stats with a random user             |
-| /health         | Show bot health information                  |
-| /project-create | Create a project                             |
-| /project-update | Update a project                             |
-| /project-mine   | List your projects                           |
-| /devlog-create  | Create a devlog entry                        |
-| /devlog-list    | List recent devlogs                          |
-| /devlog-view    | View a devlog by ID                          |
-| /project-devlogs| List devlogs for a project                   |
+| Command          | Description                                    |
+| ---------------- | ---------------------------------------------- |
+| /login           | Store your API key for Flavortown or Hackatime |
+| /logout          | Remove stored API keys                         |
+| /status          | Check which services you are logged into       |
+| /search          | Search for users or projects                   |
+| /list            | List shop items or projects                    |
+| /profile         | Show Flavortown profile                        |
+| /time            | Show Hackatime coding time today               |
+| /overlap         | Compare stats with a random user               |
+| /health          | Show bot health information                    |
+| /project-create  | Create a project                               |
+| /project-update  | Update a project                               |
+| /project-mine    | List your projects                             |
+| /devlog-create   | Create a devlog entry                          |
+| /devlog-list     | List recent devlogs                            |
+| /devlog-view     | View a devlog by ID                            |
+| /project-devlogs | List devlogs for a project                     |
 
 ## Data Storage
 
@@ -96,6 +102,19 @@ Environment variables:
 Activate the virtual environment and run tests:
 
 pytest
+
+## Deployment
+
+1. Copy .env.example to .env and fill in required values.
+2. Build and run with Docker Compose.
+
+   docker compose up -d --build
+
+The compose file mounts data/ for persistence and loads environment variables from .env.
+
+To stop:
+
+docker compose down
 
 ## Project Files
 

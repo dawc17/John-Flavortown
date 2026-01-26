@@ -7,6 +7,38 @@ import requests
 logger = logging.getLogger(__name__)
 _SESSION = requests.Session()
 
+_STATS = {
+    "total_calls": 0,
+    "error_calls": 0,
+    "by_service": {},
+}
+
+
+def _track_call(service: str) -> None:
+    _STATS["total_calls"] += 1
+    _STATS["by_service"].setdefault(service, {"total": 0, "errors": 0})
+    _STATS["by_service"][service]["total"] += 1
+
+
+def _track_error(service: str) -> None:
+    _STATS["error_calls"] += 1
+    _STATS["by_service"].setdefault(service, {"total": 0, "errors": 0})
+    _STATS["by_service"][service]["errors"] += 1
+
+
+def get_http_stats() -> dict:
+    return {
+        "total_calls": _STATS["total_calls"],
+        "error_calls": _STATS["error_calls"],
+        "by_service": {k: v.copy() for k, v in _STATS["by_service"].items()},
+    }
+
+
+def reset_http_stats() -> None:
+    _STATS["total_calls"] = 0
+    _STATS["error_calls"] = 0
+    _STATS["by_service"].clear()
+
 
 class HTTPAPIError(Exception):
     pass
@@ -34,6 +66,7 @@ def _request(
 
     for attempt in range(max_retries + 1):
         try:
+            _track_call(service)
             response = _SESSION.request(
                 method,
                 url,
@@ -55,6 +88,7 @@ def _request(
                     url,
                     response.status_code,
                 )
+                _track_error(service)
                 raise error_class(_format_error(action, url, 401, "Invalid API key or unauthorized access."))
 
             response.raise_for_status()
@@ -70,6 +104,7 @@ def _request(
                 status,
                 detail,
             )
+            _track_error(service)
             raise error_class(_format_error(action, url, status, detail))
         except requests.RequestException as e:
             logger.error(
@@ -80,6 +115,7 @@ def _request(
                 str(e),
                 exc_info=True,
             )
+            _track_error(service)
             raise error_class(_format_error(action, url, None, str(e)))
 
 
@@ -100,6 +136,7 @@ def _request_multipart(
 
     for attempt in range(max_retries + 1):
         try:
+            _track_call(service)
             response = _SESSION.request(
                 method,
                 url,
@@ -121,6 +158,7 @@ def _request_multipart(
                     url,
                     response.status_code,
                 )
+                _track_error(service)
                 raise error_class(_format_error(action, url, 401, "Invalid API key or unauthorized access."))
 
             response.raise_for_status()
@@ -136,6 +174,7 @@ def _request_multipart(
                 status,
                 detail,
             )
+            _track_error(service)
             raise error_class(_format_error(action, url, status, detail))
         except requests.RequestException as e:
             logger.error(
@@ -146,4 +185,5 @@ def _request_multipart(
                 str(e),
                 exc_info=True,
             )
+            _track_error(service)
             raise error_class(_format_error(action, url, None, str(e)))

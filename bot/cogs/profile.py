@@ -4,7 +4,7 @@ from discord.ext import commands
 
 from bot.cogs.login import UnlockModal, get_api_key_for_user
 from bot.storage import user_has_key
-from bot.api import get_self, get_project_by_id, get_project_devlogs
+from bot.api import get_self, get_project_by_id
 from bot.errors import APIError, StorageError
 from bot.utils import format_seconds, send_error
 
@@ -93,22 +93,6 @@ class Profile(commands.Cog):
                     value=f"**{project_title}** ({max_devlogs} devlogs)",
                     inline=False
                 )
-
-                try:
-                    devlogs = get_project_devlogs(api_key, most_active_project.get("id"), page=1)
-                    recent = (devlogs.get("devlogs") or [])
-                    if recent:
-                        recent_log = recent[0]
-                        body = (recent_log.get("body") or "").strip()
-                        if len(body) > 180:
-                            body = body[:177] + "..."
-                        scrapbook_url = recent_log.get("scrapbook_url")
-                        if scrapbook_url:
-                            body = f"{body}\n[View Scrapbook]({scrapbook_url})"
-                        if body:
-                            embed.add_field(name="Latest Devlog", value=body, inline=False)
-                except APIError:
-                    pass
 
             if avatar_url:
                 embed.set_thumbnail(url=avatar_url)

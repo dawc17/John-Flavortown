@@ -80,6 +80,18 @@ def _get_connection() -> sqlite3.Connection:
                         )
                     """)
                     conn.commit()
+
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS user_preferences (
+                        discord_id INTEGER PRIMARY KEY,
+                        timezone TEXT,
+                        public_output INTEGER DEFAULT 0,
+                        default_service TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                conn.commit()
                     
                 _db_initialized = True
     
@@ -189,6 +201,63 @@ def user_has_key(discord_id: int, service: str = "flavortown") -> bool:
         return exists
     except sqlite3.Error as e:
         raise StorageError("Failed to read API key. Please try again.") from e
+    finally:
+        conn.close()
+
+def get_user_preferences(discord_id: int) -> dict | None:
+    """Get user preferences for a Discord user."""
+    conn = _get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT discord_id, timezone, public_output, default_service FROM user_preferences WHERE discord_id = ?",
+            (discord_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return {
+                "discord_id": row["discord_id"],
+                "timezone": row["timezone"],
+                "public_output": bool(row["public_output"]) if row["public_output"] is not None else None,
+                "default_service": row["default_service"],
+            }
+        return None
+    except sqlite3.Error as e:
+        raise StorageError("Failed to read preferences. Please try again.") from e
+    finally:
+        conn.close()
+
+
+def upsert_user_preferences(
+    discord_id: int,
+    timezone: str | None,
+    public_output: bool | None,
+    default_service: str | None,
+) -> None:
+    """Insert or update user preferences."""
+    conn = _get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO user_preferences (discord_id, timezone, public_output, default_service, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(discord_id) DO UPDATE SET
+                timezone = excluded.timezone,
+                public_output = excluded.public_output,
+                default_service = excluded.default_service,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                discord_id,
+                timezone,
+                1 if public_output else 0 if public_output is not None else None,
+                default_service,
+            ),
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        raise StorageError("Failed to save preferences. Please try again.") from e
     finally:
         conn.close()
 

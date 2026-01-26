@@ -23,6 +23,8 @@ class JF(commands.Bot):
     await self.load_extension("bot.cogs.devlogs")
     await self.load_extension("bot.cogs.projects")
     await self.load_extension("bot.cogs.system")
+    await self.load_extension("bot.cogs.settings")
+    await self.load_extension("bot.cogs.admin")
     if GUILD_ID: 
       guild = discord.Object(id=GUILD_ID)
       self.tree.copy_global_to(guild=guild)
