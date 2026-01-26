@@ -19,6 +19,7 @@ from bot.storage import store_encrypted_key, get_encrypted_key, delete_user_key,
 from bot.errors import StorageError
 from bot.utils import send_error
 from bot.api import API_BASE_URL
+from bot.demo import is_demo_mode, get_demo_api_key
 
 # keys stored only in ram
 # SESSION_CACHE[user_id] = { "flavortown": { "key": ..., "expires": ... }, "hackatime": ... }
@@ -323,6 +324,9 @@ async def get_api_key_for_user(
     """
     Attempt to get a user's API key from cache or decrypt it.
     """
+    if is_demo_mode():
+        return get_demo_api_key(service)
+
     user_id = interaction.user.id
     
     if user_id in SESSION_CACHE and service in SESSION_CACHE[user_id]:
@@ -377,16 +381,17 @@ def require_auth(service="flavortown"):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
-            try:
-                if not user_has_key(interaction.user.id, service):
-                    await interaction.response.send_message(
-                        f"You need to log in to **{service.title()}** first! Use `/login`.",
-                        ephemeral=True
-                    )
+            if not is_demo_mode():
+                try:
+                    if not user_has_key(interaction.user.id, service):
+                        await interaction.response.send_message(
+                            f"You need to log in to **{service.title()}** first! Use `/login`.",
+                            ephemeral=True
+                        )
+                        return
+                except StorageError:
+                    await send_error(interaction, "Storage error. Please try again in a moment.")
                     return
-            except StorageError:
-                await send_error(interaction, "Storage error. Please try again in a moment.")
-                return
             
             async def on_password(modal_interaction: discord.Interaction, password: str):
                 try:

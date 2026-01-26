@@ -9,6 +9,7 @@ from bot.config import ADMIN_USER_IDS
 from bot.cogs.login import clear_all_sessions
 from bot.http import get_http_stats, reset_http_stats
 from bot.utils import send_error
+from bot.demo import is_demo_mode, set_demo_mode, get_demo_api_key
 
 
 class Admin(commands.Cog):
@@ -94,6 +95,43 @@ class Admin(commands.Cog):
             await interaction.response.send_message("DB vacuum completed.", ephemeral=True)
         except sqlite3.Error:
             await send_error(interaction, "DB vacuum failed. Check logs.")
+
+    @admin.command(name="demo-on", description="Enable demo mode")
+    async def demo_on(self, interaction: discord.Interaction):
+        if not self._ensure_admin(interaction):
+            await send_error(interaction, "You don't have permission to use this command.")
+            return
+
+        set_demo_mode(True)
+        ft_key = "set" if get_demo_api_key("flavortown") else "missing"
+        ht_key = "set" if get_demo_api_key("hackatime") else "missing"
+        await interaction.response.send_message(
+            f"Demo mode enabled. Flavortown key: {ft_key}. Hackatime key: {ht_key}.",
+            ephemeral=True,
+        )
+
+    @admin.command(name="demo-off", description="Disable demo mode")
+    async def demo_off(self, interaction: discord.Interaction):
+        if not self._ensure_admin(interaction):
+            await send_error(interaction, "You don't have permission to use this command.")
+            return
+
+        set_demo_mode(False)
+        await interaction.response.send_message("Demo mode disabled.", ephemeral=True)
+
+    @admin.command(name="demo-status", description="Show demo mode status")
+    async def demo_status(self, interaction: discord.Interaction):
+        if not self._ensure_admin(interaction):
+            await send_error(interaction, "You don't have permission to use this command.")
+            return
+
+        status = "enabled" if is_demo_mode() else "disabled"
+        ft_key = "set" if get_demo_api_key("flavortown") else "missing"
+        ht_key = "set" if get_demo_api_key("hackatime") else "missing"
+        await interaction.response.send_message(
+            f"Demo mode is {status}. Flavortown key: {ft_key}. Hackatime key: {ht_key}.",
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot):

@@ -6,6 +6,7 @@ from bot.cogs.login import require_auth, get_api_key_for_user
 from bot.api import create_devlog_with_attachments, list_devlogs, get_devlog_by_id, get_project_devlogs
 from bot.errors import APIError, StorageError
 from bot.utils import send_error, parse_media_urls, require_non_empty, clamp_page
+from bot.demo import is_demo_mode
 from bot.cogs.views import DevlogListView, ProjectDevlogListView
 
 
@@ -115,6 +116,10 @@ class Devlogs(commands.Cog):
         attachment2: discord.Attachment | None = None,
         attachment3: discord.Attachment | None = None,
     ):
+        if is_demo_mode():
+            await send_error(interaction, "Demo mode is enabled. Devlog creation is disabled.")
+            return
+
         try:
             api_key = await get_api_key_for_user(interaction, service="flavortown")
         except StorageError:

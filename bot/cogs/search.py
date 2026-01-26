@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.cogs.login import get_api_key_for_user, UnlockModal
+from bot.demo import is_demo_mode
 from bot.storage import user_has_key
 from bot.api import get_users, get_projects, get_shop
 from bot.errors import APIError, StorageError
@@ -115,16 +116,17 @@ class Search(commands.Cog):
         page: int = 1,
     ):
         """Search for users or projects by query."""
-        try:
-            if not user_has_key(interaction.user.id):
-                await interaction.response.send_message(
-                    "You need to log in first! Use `/login` to store your API key.",
-                    ephemeral=True
-                )
+        if not is_demo_mode():
+            try:
+                if not user_has_key(interaction.user.id):
+                    await interaction.response.send_message(
+                        "You need to log in first! Use `/login` to store your API key.",
+                        ephemeral=True
+                    )
+                    return
+            except StorageError:
+                await send_error(interaction, "Storage error. Please try again in a moment.")
                 return
-        except StorageError:
-            await send_error(interaction, "Storage error. Please try again in a moment.")
-            return
 
         try:
             api_key = await get_api_key_for_user(interaction)
@@ -167,16 +169,17 @@ class Search(commands.Cog):
         page: int = 1,
     ):
         """List shop items or projects."""
-        try:
-            if not user_has_key(interaction.user.id):
-                await interaction.response.send_message(
-                    "You need to log in first! Use `/login` to store your API key.",
-                    ephemeral=True
-                )
+        if not is_demo_mode():
+            try:
+                if not user_has_key(interaction.user.id):
+                    await interaction.response.send_message(
+                        "You need to log in first! Use `/login` to store your API key.",
+                        ephemeral=True
+                    )
+                    return
+            except StorageError:
+                await send_error(interaction, "Storage error. Please try again in a moment.")
                 return
-        except StorageError:
-            await send_error(interaction, "Storage error. Please try again in a moment.")
-            return
 
         try:
             api_key = await get_api_key_for_user(interaction)

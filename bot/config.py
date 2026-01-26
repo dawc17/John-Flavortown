@@ -16,5 +16,9 @@ DEFAULT_TIMEZONE = os.getenv("DEFAULT_TIMEZONE", "UTC")
 DEFAULT_PUBLIC_OUTPUT = os.getenv("DEFAULT_PUBLIC_OUTPUT", "false").lower() in ("1", "true", "yes", "y", "on")
 DEFAULT_SERVICE = os.getenv("DEFAULT_SERVICE", "flavortown")
 
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("1", "true", "yes", "y", "on")
+DEMO_API_KEY = os.getenv("DEMO_API_KEY", "").strip() or None
+DEMO_HACKATIME_API_KEY = os.getenv("DEMO_HACKATIME_API_KEY", "").strip() or None
+
 _admin_ids_raw = os.getenv("ADMIN_USER_IDS", "").strip()
 ADMIN_USER_IDS = {int(x) for x in _admin_ids_raw.split(",") if x.strip().isdigit()}

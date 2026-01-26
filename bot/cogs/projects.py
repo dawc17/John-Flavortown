@@ -7,6 +7,7 @@ from bot.api import get_self, get_project_by_id, create_project, update_project
 from bot.errors import APIError, StorageError
 from bot.utils import send_error, normalize_optional, require_non_empty, validate_url
 from bot.cogs.views import ConfirmView
+from bot.demo import is_demo_mode
 
 
 class Projects(commands.Cog):
@@ -63,6 +64,10 @@ class Projects(commands.Cog):
         demo_url: str | None = None,
         readme_url: str | None = None,
     ):
+        if is_demo_mode():
+            await send_error(interaction, "Demo mode is enabled. Project creation is disabled.")
+            return
+
         try:
             api_key = await get_api_key_for_user(interaction, service="flavortown")
         except StorageError:
@@ -102,6 +107,10 @@ class Projects(commands.Cog):
         demo_url: str | None = None,
         readme_url: str | None = None,
     ):
+        if is_demo_mode():
+            await send_error(interaction, "Demo mode is enabled. Project updates are disabled.")
+            return
+
         try:
             api_key = await get_api_key_for_user(interaction, service="flavortown")
         except StorageError:

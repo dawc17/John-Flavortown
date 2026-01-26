@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.cogs.login import UnlockModal, get_api_key_for_user
+from bot.demo import is_demo_mode
 from bot.storage import user_has_key
 from bot.api import get_self, get_project_by_id
 from bot.errors import APIError, StorageError
@@ -114,16 +115,17 @@ class Profile(commands.Cog):
     )
     async def profile(self, interaction: discord.Interaction):
         """Show profile - requires authentication."""
-        try:
-            if not user_has_key(interaction.user.id):
-                await interaction.response.send_message(
-                    "You need to log in first! Use `/login` to store your API key.",
-                    ephemeral=True
-                )
+        if not is_demo_mode():
+            try:
+                if not user_has_key(interaction.user.id):
+                    await interaction.response.send_message(
+                        "You need to log in first! Use `/login` to store your API key.",
+                        ephemeral=True
+                    )
+                    return
+            except StorageError:
+                await send_error(interaction, "Storage error. Please try again in a moment.")
                 return
-        except StorageError:
-            await send_error(interaction, "Storage error. Please try again in a moment.")
-            return
         
         try:
             api_key = await get_api_key_for_user(interaction)
