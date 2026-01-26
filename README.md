@@ -2,6 +2,9 @@
 
 Discord bot for interacting with the Flavortown and Hackatime APIs. Provides commands to search users and projects, list shop items and projects, view profile stats, and fetch Hackatime time data.
 
+## For users - invite link
+https://discord.com/oauth2/authorize?client_id=1463103382104440946&permissions=277025442816&integration_type=0&scope=applications.commands+bot
+
 ## Features
 
 - Search users or projects
