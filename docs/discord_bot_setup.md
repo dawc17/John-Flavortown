@@ -10,9 +10,8 @@ This guide walks you through creating a Discord application and configuring it t
 ## 2) Create a bot user
 
 1. In your application, open **Bot** in the left sidebar.
-2. Click **Add Bot**.
-3. (Optional) Toggle **Public Bot** off if you want only you to invite it.
-4. Under **Privileged Gateway Intents**, enable the intents the bot requires (common ones are **Server Members** and **Message Content**).
+2. (Optional) Toggle **Public Bot** off if you want only you to invite it.
+3. Under **Privileged Gateway Intents**, enable the intents the bot requires (common ones are **Server Members** and **Message Content**).
 
 ## 3) Get the bot token
 
@@ -21,7 +20,7 @@ This guide walks you through creating a Discord application and configuring it t
 
 ## 4) Set up environment variables
 
-This project reads configuration from environment variables (typically from a `.env` file).
+This project reads configuration from environment variables (.env file).
 
 1. Create or update your `.env` file at the project root.
 2. Add your bot token and any other required config values.
@@ -37,13 +36,20 @@ If the project expects additional variables, check the project README or configu
 ## 5) Invite the bot to your server
 
 1. Go to **OAuth2** → **URL Generator**.
-2. Under **Scopes**, select **bot** (and **applications.commands** if you need slash commands).
-3. Under **Bot Permissions**, select the permissions the bot needs.
+2. Under **Scopes**, select **bot** and **applications.commands**.
+3. Under **Bot Permissions**, select these permissions:
+    - Send messages
+    - Embed links
+    - Attach files
+    - Read message history
+    - Use slash commands
+    - View channels
+    - (optional) Send messages in threads
 4. Copy the generated URL, open it in your browser, and choose a server where you have permission to invite bots.
 
 ## 6) Run the bot
 
-Start the bot using your normal project run method (see the project README for the exact command).
+Start the bot using your preferred method (check README).
 
 ## Troubleshooting
 
